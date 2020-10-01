@@ -3,14 +3,13 @@ package u2fauth
 import (
 	"context"
 	"strings"
-	"time"
 
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/helper/tokenutil"
 	"github.com/hashicorp/vault/sdk/logical"
 )
 
-func pathUsersList(b *backend) *framework.Path {
+func pathDevicesList(b *backend) *framework.Path {
 	return &framework.Path{
 		Pattern: "devices/?",
 
@@ -31,9 +30,9 @@ func pathDevices(b *backend) *framework.Path {
 				Type:        framework.TypeString,
 				Description: "User friendly name for this device.",
 			},
-			"registrationData": &framework.FieldSchema{
+			"registration_data": &framework.FieldSchema{
 				Type:        framework.TypeString,
-				Description: "registrationData for this device.",
+				Description: "registration data for this device.",
 			},
 			"challenge": &framework.FieldSchema{
 				Type:        framework.TypeString,
@@ -41,15 +40,15 @@ func pathDevices(b *backend) *framework.Path {
 			},
 			"version": &framework.FieldSchema{
 				Type:        framework.TypeString,
-				Description: "registrationData this device.",
+				Description: "version of this device.",
 			},
-			"clientData": &framework.FieldSchema{
+			"client_data": &framework.FieldSchema{
 				Type:        framework.TypeString,
-				Description: "clientData for this device.",
+				Description: "client data for this device.",
 			},
 
-			"policies": &framework.FieldSchema{
-				Type:        framework.TypeString,
+			"token_policies": &framework.FieldSchema{
+				Type:        framework.TypeCommaStringSlice,
 				Description: "Comma-separated list of policies",
 			},
 			"ttl": &framework.FieldSchema{
@@ -61,6 +60,11 @@ func pathDevices(b *backend) *framework.Path {
 				Type:        framework.TypeString,
 				Default:     "",
 				Description: "Maximum duration after which login should expire",
+			},
+			"token_bound_cidrs": &framework.FieldSchema{
+				Type:        framework.TypeCommaStringSlice,
+				Description: "",
+				Deprecated:  true,
 			},
 		},
 
@@ -89,7 +93,7 @@ func (b *backend) ExistenceCheck(ctx context.Context, req *logical.Request, data
 func (b *backend) pathDeviceList(
 	ctx context.Context,
 	req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
-	devices, err := req.Storage.List(ctx, "device/")
+	devices, err := req.Storage.List(ctx, "devices/")
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +103,7 @@ func (b *backend) pathDeviceList(
 func (b *backend) pathDeviceDelete(
 	ctx context.Context,
 	req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
-	err := req.Storage.Delete(ctx, "device/"+strings.ToLower(d.Get("name").(string)))
+	err := req.Storage.Delete(ctx, "devices/"+strings.ToLower(d.Get("name").(string)))
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +114,9 @@ func (b *backend) pathDeviceDelete(
 func (b *backend) pathDeviceRead(
 	ctx context.Context,
 	req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
-	device, err := b.device(ctx, req.Storage, strings.ToLower(d.Get("name").(string)))
+	name := strings.ToLower(d.Get("name").(string))
+	device, err := b.device(ctx, req.Storage, name)
+	b.Logger().Debug("pathDeviceRead", "name", name)
 	if err != nil {
 		return nil, err
 	}
@@ -120,17 +126,12 @@ func (b *backend) pathDeviceRead(
 
 	data := map[string]interface{}{}
 	device.PopulateTokenData(data)
-
+	data["registration_data"] = device.RegistrationData
+	data["client_data"] = device.ClientData
+	data["challenge"] = device.Challenge
+	data["version"] = device.Version
+	data["token_policies"] = strings.Join(device.TokenPolicies, ",")
 	return &logical.Response{
-		// Data: map[string]interface{}{
-		// 	"registrationData": device.RegistrationData,
-		// 	"clientData":       device.ClientData,
-		// 	"challenge":        device.Challenge,
-		// 	"version":          device.Version,
-		// 	"policies":         strings.Join(device.Policies, ","),
-		// 	"ttl":              device.TTL.Seconds(),
-		// 	"max_ttl":          device.MaxTTL.Seconds(),
-		// },
 		Data: data,
 	}, nil
 }
@@ -138,7 +139,8 @@ func (b *backend) pathDeviceRead(
 func (b *backend) deviceCreateUpdate(
 	ctx context.Context,
 	req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
-	name := strings.ToLower(d.Get("device").(string))
+	name := strings.ToLower(d.Get("name").(string))
+	b.Logger().Debug("deviceCreateUpdate", "name", name)
 	dEntry, err := b.device(ctx, req.Storage, name)
 	if err != nil {
 		return nil, err
@@ -151,7 +153,7 @@ func (b *backend) deviceCreateUpdate(
 		return logical.ErrorResponse(err.Error()), logical.ErrInvalidRequest
 	}
 
-	if _, ok := d.GetOk("registrationData"); ok {
+	if _, ok := d.GetOk("registration_data"); ok {
 		dErr, intErr := b.updateRegistrationData(req, d, dEntry)
 		if intErr != nil {
 			return nil, err
@@ -161,7 +163,7 @@ func (b *backend) deviceCreateUpdate(
 		}
 	}
 
-	if _, ok := d.GetOk("clientData"); ok {
+	if _, ok := d.GetOk("client_data"); ok {
 		dErr, intErr := b.updateClientData(req, d, dEntry)
 		if intErr != nil {
 			return nil, err
@@ -190,31 +192,16 @@ func (b *backend) deviceCreateUpdate(
 			return logical.ErrorResponse(dErr.Error()), logical.ErrInvalidRequest
 		}
 	}
-
-	// handle upgrade cases
-	{
-		if err := tokenutil.UpgradeValue(d, "policies", "token_policies", &dEntry.Policies, &dEntry.TokenPolicies); err != nil {
-			return logical.ErrorResponse(err.Error()), nil
-		}
-
-		if err := tokenutil.UpgradeValue(d, "ttl", "token_ttl", &dEntry.TTL, &dEntry.TokenTTL); err != nil {
-			return logical.ErrorResponse(err.Error()), nil
-		}
-
-		if err := tokenutil.UpgradeValue(d, "max_ttl", "token_max_ttl", &dEntry.MaxTTL, &dEntry.TokenMaxTTL); err != nil {
-			return logical.ErrorResponse(err.Error()), nil
-		}
-	}
-
+	b.Logger().Debug("deviceCreateUpdate", "dentry", dEntry)
 	return nil, b.setDevice(ctx, req.Storage, name, dEntry)
 }
 
 func (b *backend) pathDeviceWrite(
 	ctx context.Context,
 	req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
-	registrationData := d.Get("registrationData").(string)
+	registrationData := d.Get("registration_data").(string)
 	if req.Operation == logical.CreateOperation && registrationData == "" {
-		return logical.ErrorResponse("missing registrationData"), logical.ErrInvalidRequest
+		return logical.ErrorResponse("missing registration_data"), logical.ErrInvalidRequest
 	}
 	return b.deviceCreateUpdate(ctx, req, d)
 }
@@ -222,23 +209,15 @@ func (b *backend) pathDeviceWrite(
 type U2fEntry struct {
 	tokenutil.TokenParams
 	//Userfriendly name of the device
-	Name string
+	Name string `json:"name" mapstructure:"name" structs:"name"`
 
-	RegistrationData string
+	RegistrationData string `json:"registration_data" mapstructure:"registration_data" structs:"registration_data"`
 
-	ClientData string
+	ClientData string `json:"client_data" mapstructure:"client_data" structs:"client_data"`
 
-	Challenge string
+	Challenge string `json:"challenge" mapstructure:"challenge" structs:"challenge"`
 
-	Version string
-
-	Policies []string
-
-	// Duration after which the user will be revoked unless renewed
-	TTL time.Duration
-
-	// Maximum duration for which user can be valid
-	MaxTTL time.Duration
+	Version string `json:"version" mapstructure:"version" structs:"version"`
 }
 
 const pathUserHelpSyn = `

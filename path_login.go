@@ -14,14 +14,14 @@ func pathLogin(b *backend) *framework.Path {
 	return &framework.Path{
 		Pattern: "login/" + framework.GenericNameRegex("name"),
 		Fields: map[string]*framework.FieldSchema{
-			"registrationData": &framework.FieldSchema{
+			"registration_data": &framework.FieldSchema{
 				Type:        framework.TypeString,
-				Description: "registrationData of the device.",
+				Description: "registration data of the device.",
 			},
 
-			"clientData": &framework.FieldSchema{
+			"client_data": &framework.FieldSchema{
 				Type:        framework.TypeString,
-				Description: "clientData for this device.",
+				Description: "client data for this device.",
 			},
 			"challenge": &framework.FieldSchema{
 				Type:        framework.TypeString,
@@ -99,7 +99,7 @@ func (b *backend) pathLoginRenew(
 		return nil, nil
 	}
 
-	if !policyutil.EquivalentPolicies(device.Policies, req.Auth.Policies) {
+	if !policyutil.EquivalentPolicies(device.TokenPolicies, req.Auth.Policies) {
 		return nil, fmt.Errorf("policies have changed, not renewing")
 	}
 

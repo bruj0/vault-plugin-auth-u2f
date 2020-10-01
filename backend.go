@@ -32,6 +32,7 @@ func Backend() *backend {
 		},
 		Paths: append([]*framework.Path{
 			pathDevices(&b),
+			pathDevicesList(&b),
 			pathLogin(&b),
 		}),
 	}
@@ -53,23 +54,24 @@ by suppying the fields for "login".
 `
 
 func (b *backend) updateRegistrationData(req *logical.Request, d *framework.FieldData, dEntry *U2fEntry) (error, error) {
-	return b.updateData(req, d, dEntry, "registrationData")
+	return b.updateData(req, d, dEntry, "registration_data", "RegistrationData")
 }
 func (b *backend) updateClientData(req *logical.Request, d *framework.FieldData, dEntry *U2fEntry) (error, error) {
-	return b.updateData(req, d, dEntry, "clientData")
+	return b.updateData(req, d, dEntry, "client_data", "ClientData")
 }
 func (b *backend) updateChallenge(req *logical.Request, d *framework.FieldData, dEntry *U2fEntry) (error, error) {
-	return b.updateData(req, d, dEntry, "challenge")
+	return b.updateData(req, d, dEntry, "challenge", "Challenge")
 }
 func (b *backend) updateVersion(req *logical.Request, d *framework.FieldData, dEntry *U2fEntry) (error, error) {
-	return b.updateData(req, d, dEntry, "version")
+	return b.updateData(req, d, dEntry, "version", "Version")
 }
-func (b *backend) updateData(req *logical.Request, d *framework.FieldData, dEntry *U2fEntry, field string) (error, error) {
-	fieldRaw := d.Get(field).(string)
-	if fieldRaw == "" {
-		return fmt.Errorf(fmt.Sprintf("missing %s", field)), nil
+func (b *backend) updateData(req *logical.Request, d *framework.FieldData, dEntry *U2fEntry, field string, structField string) (error, error) {
+	fieldValue := d.Get(field).(string)
+	if structField == "" {
+		structField = field
 	}
-	reflect.ValueOf(dEntry).Elem().FieldByName(field).SetString(fieldRaw)
+	b.Logger().Debug("updateData", "fieldValue", fieldValue, "structField", structField)
+	reflect.ValueOf(dEntry).Elem().FieldByName(structField).SetString(fieldValue)
 	return nil, nil
 }
 
@@ -79,6 +81,7 @@ func (b *backend) device(ctx context.Context, s logical.Storage, name string) (*
 	}
 
 	entry, err := s.Get(ctx, "devices/"+strings.ToLower(name))
+	b.Logger().Debug("device", "entry", entry)
 	if err != nil {
 		return nil, err
 	}
@@ -90,21 +93,14 @@ func (b *backend) device(ctx context.Context, s logical.Storage, name string) (*
 	if err := entry.DecodeJSON(&result); err != nil {
 		return nil, err
 	}
-	if result.TokenTTL == 0 && result.TTL > 0 {
-		result.TokenTTL = result.TTL
-	}
-	if result.TokenMaxTTL == 0 && result.MaxTTL > 0 {
-		result.TokenMaxTTL = result.MaxTTL
-	}
-	if len(result.TokenPolicies) == 0 && len(result.Policies) > 0 {
-		result.TokenPolicies = result.Policies
-	}
+	b.Logger().Debug("device", "result", result)
 
 	return &result, nil
 }
 
-func (b *backend) setDevice(ctx context.Context, s logical.Storage, name string, u2fEntry *U2fEntry) error {
-	entry, err := logical.StorageEntryJSON("device/"+name, u2fEntry)
+func (b *backend) setDevice(ctx context.Context, s logical.Storage, name string, dEntry *U2fEntry) error {
+	entry, err := logical.StorageEntryJSON("devices/"+name, dEntry)
+	b.Logger().Debug("setDevice", "entry", entry)
 	if err != nil {
 		return err
 	}

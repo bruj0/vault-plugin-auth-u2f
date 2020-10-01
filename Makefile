@@ -35,7 +35,7 @@ dev:
 		CGO_ENABLED=1 \
 		go install \
 			-ldflags="${LDFLAGS}" \
-			./cmd/... && cp $(HOME)/go/bin/vault-plugin-secrets-pkcs11 plugins/pkcs11
+			./cmd/... && cp $(HOME)/go/bin/vault-plugin-auth-u2f plugins/u2f
 .PHONY: dev 
 # test runs the tests
 test:
