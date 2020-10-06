@@ -28,12 +28,15 @@ func Backend() *backend {
 		PathsSpecial: &logical.Paths{
 			Unauthenticated: []string{
 				"login/*",
+				"registrationRequest",
 			},
 		},
 		Paths: append([]*framework.Path{
 			pathDevices(&b),
 			pathDevicesList(&b),
 			pathLogin(&b),
+			pathRegistrationRequest(&b),
+			pathRegistrationResponse(&b),
 		}),
 	}
 

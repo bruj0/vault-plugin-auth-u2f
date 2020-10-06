@@ -8,6 +8,8 @@ package main
 import (
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 
@@ -25,17 +27,23 @@ var challenge *u2f.Challenge
 var registrations []u2f.Registration
 
 func registerRequest(w http.ResponseWriter, r *http.Request) {
-	c, err := u2f.NewChallenge(appID, trustedFacets, registrations)
-	if err != nil {
-		log.Printf("u2f.NewChallenge error: %v", err)
-		http.Error(w, "error", http.StatusInternalServerError)
-		return
-	}
-	challenge = c
-	req := c.RegisterRequest()
+	// c, err := u2f.NewChallenge(appID, trustedFacets, registrations)
+	// if err != nil {
+	// 	log.Printf("u2f.NewChallenge error: %v", err)
+	// 	http.Error(w, "error", http.StatusInternalServerError)
+	// 	return
+	// }
+	// challenge = c
+	// req := c.RegisterRequest()
 
-	log.Printf("1 registerRequest: %+v", req)
-	json.NewEncoder(w).Encode(req)
+	//json.NewEncoder(w).Encode(req)
+	req, err := getPasstrough("auth/u2f/registrationRequest")
+	if err != "" {
+		log.Printf("registerRequest error: %v", err)
+	}
+	log.Printf("1 registerRequest: %s", req)
+	w.Write([]byte(req))
+
 }
 
 func registerResponse(w http.ResponseWriter, r *http.Request) {
@@ -45,21 +53,24 @@ func registerResponse(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if challenge == nil {
-		http.Error(w, "challenge not found", http.StatusBadRequest)
-		return
+	// if challenge == nil {
+	// 	http.Error(w, "challenge not found", http.StatusBadRequest)
+	// 	return
+	// }
+
+	// reg, err := challenge.Register(regResp, &u2f.RegistrationConfig{SkipAttestationVerify: true})
+	// if err != nil {
+	// 	log.Printf("u2f.Register error: %v", err)
+	// 	http.Error(w, "error verifying response", http.StatusInternalServerError)
+	// 	return
+	// }
+
+	// registrations = append(registrations, *reg)
+	req, err := postPasstrough("auth/u2f/registrationResponse", &regResp)
+	if err != "" {
+		log.Printf("registerResponse error: %v", err)
 	}
-
-	reg, err := challenge.Register(regResp, &u2f.RegistrationConfig{SkipAttestationVerify: true})
-	if err != nil {
-		log.Printf("u2f.Register error: %v", err)
-		http.Error(w, "error verifying response", http.StatusInternalServerError)
-		return
-	}
-
-	registrations = append(registrations, *reg)
-
-	log.Printf("Registration success: %+v", reg)
+	log.Printf("Registration success")
 	w.Write([]byte("success"))
 }
 
@@ -175,15 +186,57 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(indexHTML))
 }
 
+const (
+	vaultAddr = "http://lxc1:8200"
+
+	staticToken = "root"
+)
+
+var client *http.Client
+
+func getPasstrough(url string, data *u2f.RegisterResponse) (string, string) {
+	req, err := http.NewRequest("POST", vaultAddr+"/v1/"+url, nil)
+	if err != nil {
+		fmt.Printf(err.Error())
+		return "", err.Error()
+	}
+	req.Header.Add("X-Vault-Token", staticToken)
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Printf(err.Error())
+		return "", err.Error()
+	}
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf(err.Error())
+		return "", err.Error()
+	}
+
+	return string(body), ""
+
+}
+func getPasstrough(url string) (string, string) {
+	req, err := http.NewRequest("GET", vaultAddr+"/v1/"+url, nil)
+	if err != nil {
+		fmt.Printf(err.Error())
+		return "", err.Error()
+	}
+	req.Header.Add("X-Vault-Token", staticToken)
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Printf(err.Error())
+		return "", err.Error()
+	}
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf(err.Error())
+		return "", err.Error()
+	}
+
+	return string(body), ""
+}
 func main() {
-
-	registrations = append(registrations, u2f.Registration{
-		KeyHandle:   "zmhmbCp9f6GEItHLSBrKIxXB26XnbPjhls2wW32xbM7exZQxMOvX_fqlaC7OWuCf3qRecXdR8dItVMCCDFRWUg",
-		PublicKey:   "BFm2_zwxlS9Nzf-57Uoy9rL_w4kYWE7tobUX3W1NxJhzkA3hpFhvju3p4VX0_rftKdYdRZqXIJRHuH1PTS3ygv4",
-		Counter:     0,
-		Certificate: "MIIBNTCB3KADAgECAgsAwAyhO3AYD-SngjAKBggqhkjOPQQDAjAVMRMwEQYDVQQDEwpVMkYgSXNzdWVyMBoXCzAwMDEwMTAwMDBaFwswMDAxMDEwMDAwWjAVMRMwEQYDVQQDEwpVMkYgRGV2aWNlMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEVt5r4IIBihiZDFD_GN-gAtQJEo0pGcnKFuDtirT4KKycCxOZzvDzEIhosWczhet8Texz0WD69sTZBEQe-GUEjKMXMBUwEwYLKwYBBAGC5RwCAQEEBAMCBSAwCgYIKoZIzj0EAwIDSAAwRQIhAMGjpo4vFqchRicFf2K7coyeA-ehumLQRlJORW0sLz9zAiALX3jlEaoYEp9vI22SEyJ9krTmft9T6BbfsF2dyLkP3g",
-	})
-
+	client = &http.Client{}
 	http.Handle("/js/", http.StripPrefix("/js/", http.FileServer(http.Dir("./js"))))
 	http.HandleFunc("/", indexHandler)
 	http.HandleFunc("/registerRequest", registerRequest)
