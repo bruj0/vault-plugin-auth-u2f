@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
@@ -12,12 +13,18 @@ import (
 
 func pathRegistrationRequest(b *backend) *framework.Path {
 	return &framework.Path{
-		Pattern: "registerRequest",
+		Pattern: "registerRequest/" + framework.GenericNameRegex("name"),
 		Operations: map[logical.Operation]framework.OperationHandler{
 			logical.ReadOperation: &framework.PathOperation{
 				Callback:    b.RegistrationRequest,
 				Summary:     "Returns data to register a u2f device",
 				Description: "Returns data to register a u2f device",
+			},
+		},
+		Fields: map[string]*framework.FieldSchema{
+			"name": &framework.FieldSchema{
+				Type:        framework.TypeString,
+				Description: "Device name.",
 			},
 		},
 		//HelpSynopsis:    pathLoginSyn,
@@ -37,6 +44,10 @@ func pathRegistrationResponse(b *backend) *framework.Path {
 		},
 
 		Fields: map[string]*framework.FieldSchema{
+			"name": &framework.FieldSchema{
+				Type:        framework.TypeString,
+				Description: "Device name.",
+			},
 			"registrationData": &framework.FieldSchema{
 				Type:        framework.TypeString,
 				Description: "registration data of the device.",
@@ -53,10 +64,6 @@ func pathRegistrationResponse(b *backend) *framework.Path {
 				Type:        framework.TypeString,
 				Description: "registration data of the device.",
 			},
-			"challenge": &framework.FieldSchema{
-				Type:        framework.TypeString,
-				Description: "registration data of the device.",
-			},
 		},
 		//HelpSynopsis:    pathLoginSyn,
 		//HelpDescription: pathLoginDesc,
@@ -67,26 +74,47 @@ const appID = "https://lxc1:3483"
 
 var trustedFacets = []string{appID}
 
-// Normally these state variables would be stored in a database.
-// For the purposes of the demo, we just store them in memory.
-var challenge *u2f.Challenge
-
-var registrations []u2f.Registration
-
 func (b *backend) RegistrationRequest(
 	ctx context.Context,
 	req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
+	var registration []u2f.Registration
+	name := strings.ToLower(d.Get("name").(string))
 
-	b.Logger().Debug("RegistrationRequest", "registrations", registrations)
-	c, err := u2f.NewChallenge(appID, trustedFacets, registrations)
+	if name == "" {
+		return nil, fmt.Errorf("missing device name")
+	}
+
+	dEntry, err := b.device(ctx, req.Storage, name)
+	if err != nil {
+		return nil, err
+	}
+
+	if dEntry == nil {
+		b.Logger().Error("RegistrationResponse", "Creating new registration for device", name)
+		dEntry = &DeviceData{}
+		dEntry.Challenge = &u2f.Challenge{}
+	} else {
+		b.Logger().Error("RegistrationResponse", "Updating registration for device", name)
+		registration = dEntry.Registration
+	}
+
+	b.Logger().Debug("RegistrationRequest", "registration", registration)
+	c, err := u2f.NewChallenge(appID, trustedFacets, registration)
 	if err != nil {
 		b.Logger().Debug("RegistrationRequest", "error", err)
 		return nil, err
 	}
-	challenge = c
+
+	dEntry.Name = name
+	dEntry.Challenge = c
+
+	err = b.setDevice(ctx, req.Storage, name, dEntry)
+	if err != nil {
+		return nil, err
+	}
+
 	u2fReq := c.RegisterRequest()
-	b.Logger().Debug("RegistrationRequest", "registrations", registrations)
-	b.Logger().Debug("RegistrationRequest", "challenge", challenge)
+	b.Logger().Debug("RegistrationRequest", "challenge", c)
 	b.Logger().Debug("RegistrationRequest", "u2fReq", u2fReq)
 	mJSON, err := json.Marshal(u2fReq)
 	if err != nil {
@@ -103,39 +131,52 @@ func (b *backend) RegistrationRequest(
 	}, nil
 }
 
-//TODO add an identifier for the token to register
-//save it to devices
-//add authentication
 func (b *backend) RegistrationResponse(
 	ctx context.Context,
 	req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
 
-	registrationData := d.Get("registrationData").(string)
-	//appID := d.Get("appId").(string)
-	clientData := d.Get("clientData").(string)
-	//version := d.Get("version").(string)
-	//challengeStr := d.Get("challenge").(string)
-
-	b.Logger().Debug("RegistrationResponse", "1registrations", registrations)
-
-	if challenge == nil {
-		b.Logger().Error("RegistrationResponse", "challenge not found")
-		return nil, fmt.Errorf("challenge not found")
+	name := strings.ToLower(d.Get("name").(string))
+	if name == "" {
+		return nil, fmt.Errorf("missing device name")
 	}
+	dEntry, err := b.device(ctx, req.Storage, name)
+	if err != nil {
+		return nil, err
+	}
+
+	if dEntry == nil {
+		b.Logger().Error("RegistrationResponse", "Device not registered:", name)
+		return nil, fmt.Errorf("Device not registered")
+	}
+	if dEntry.Challenge == nil {
+		b.Logger().Error("RegistrationResponse", "challenge not found for device:", name)
+		return nil, fmt.Errorf("Device not registered")
+	}
+
+	dEntry.RegistrationData = d.Get("registrationData").(string)
+	dEntry.AppID = d.Get("appId").(string)
+	dEntry.ClientData = d.Get("clientData").(string)
+	dEntry.Version = d.Get("version").(string)
+
+	b.Logger().Debug("RegistrationResponse", "dEntry", dEntry)
 
 	regResp := u2f.RegisterResponse{
-		RegistrationData: registrationData,
-		ClientData:       clientData,
+		RegistrationData: dEntry.RegistrationData,
+		ClientData:       dEntry.ClientData,
 	}
-	reg, err := challenge.Register(regResp, &u2f.RegistrationConfig{SkipAttestationVerify: true})
+	b.Logger().Debug("RegistrationResponse", "regResp", regResp)
+	reg, err := dEntry.Challenge.Register(regResp, &u2f.RegistrationConfig{SkipAttestationVerify: true})
 	if err != nil {
-		b.Logger().Error("u2f.Register", "error:", err)
+		b.Logger().Error("RegistrationResponse u2f.Register", "error", err)
 		return nil, fmt.Errorf("error verifying response")
 	}
 
-	registrations = append(registrations, *reg)
+	dEntry.Registration = append(dEntry.Registration, *reg)
 
-	b.Logger().Debug("RegistrationResponse", "2registrations", registrations)
+	err = b.setDevice(ctx, req.Storage, name, dEntry)
+	if err != nil {
+		return nil, err
+	}
 
 	return &logical.Response{
 		Data: map[string]interface{}{

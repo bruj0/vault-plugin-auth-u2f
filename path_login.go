@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/hashicorp/vault/sdk/framework"
-	"github.com/hashicorp/vault/sdk/helper/policyutil"
 	"github.com/hashicorp/vault/sdk/logical"
 )
 
@@ -79,7 +78,7 @@ func (b *backend) pathLogin(
 			Name: deviceName,
 		},
 	}
-	device.PopulateTokenAuth(auth)
+	//device.PopulateTokenAuth(auth)
 
 	return &logical.Response{
 		Auth: auth,
@@ -99,14 +98,14 @@ func (b *backend) pathLoginRenew(
 		return nil, nil
 	}
 
-	if !policyutil.EquivalentPolicies(device.TokenPolicies, req.Auth.Policies) {
+	/*if !policyutil.EquivalentPolicies(device.TokenPolicies, req.Auth.Policies) {
 		return nil, fmt.Errorf("policies have changed, not renewing")
-	}
+	}*/
 
 	resp := &logical.Response{Auth: req.Auth}
-	resp.Auth.Period = device.TokenPeriod
-	resp.Auth.TTL = device.TokenTTL
-	resp.Auth.MaxTTL = device.TokenMaxTTL
+	//resp.Auth.Period = device.TokenPeriod
+	//resp.Auth.TTL = device.TokenTTL
+	//resp.Auth.MaxTTL = device.TokenMaxTTL
 	return resp, nil
 }
 

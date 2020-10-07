@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/hashicorp/vault/sdk/framework"
-	"github.com/hashicorp/vault/sdk/helper/tokenutil"
 	"github.com/hashicorp/vault/sdk/logical"
+	"github.com/ryankurte/go-u2f"
 )
 
 func pathDevicesList(b *backend) *framework.Path {
@@ -125,12 +125,7 @@ func (b *backend) pathDeviceRead(
 	}
 
 	data := map[string]interface{}{}
-	device.PopulateTokenData(data)
-	data["registration_data"] = device.RegistrationData
-	data["client_data"] = device.ClientData
-	data["challenge"] = device.Challenge
-	data["version"] = device.Version
-	data["token_policies"] = strings.Join(device.TokenPolicies, ",")
+	data["device"] = device
 	return &logical.Response{
 		Data: data,
 	}, nil
@@ -147,10 +142,7 @@ func (b *backend) deviceCreateUpdate(
 	}
 	// Due to existence check, user will only be nil if it's a create operation
 	if dEntry == nil {
-		dEntry = &U2fEntry{}
-	}
-	if err := dEntry.ParseTokenFields(req, d); err != nil {
-		return logical.ErrorResponse(err.Error()), logical.ErrInvalidRequest
+		dEntry = &DeviceData{}
 	}
 
 	if _, ok := d.GetOk("registration_data"); ok {
@@ -165,16 +157,6 @@ func (b *backend) deviceCreateUpdate(
 
 	if _, ok := d.GetOk("client_data"); ok {
 		dErr, intErr := b.updateClientData(req, d, dEntry)
-		if intErr != nil {
-			return nil, err
-		}
-		if dErr != nil {
-			return logical.ErrorResponse(dErr.Error()), logical.ErrInvalidRequest
-		}
-	}
-
-	if _, ok := d.GetOk("challenge"); ok {
-		dErr, intErr := b.updateChallenge(req, d, dEntry)
 		if intErr != nil {
 			return nil, err
 		}
@@ -206,18 +188,20 @@ func (b *backend) pathDeviceWrite(
 	return b.deviceCreateUpdate(ctx, req, d)
 }
 
-type U2fEntry struct {
-	tokenutil.TokenParams
-	//Userfriendly name of the device
+type DeviceData struct {
 	Name string `json:"name" mapstructure:"name" structs:"name"`
 
-	RegistrationData string `json:"registration_data" mapstructure:"registration_data" structs:"registration_data"`
+	RegistrationData string `json:"registration_data"`
 
-	ClientData string `json:"client_data" mapstructure:"client_data" structs:"client_data"`
+	ClientData string `json:"client_data"`
 
-	Challenge string `json:"challenge" mapstructure:"challenge" structs:"challenge"`
+	Version string `json:"version"`
 
-	Version string `json:"version" mapstructure:"version" structs:"version"`
+	AppID string `json:app_id`
+
+	Registration []u2f.Registration `json:"registration"`
+
+	Challenge *u2f.Challenge `json: challenge`
 }
 
 const pathUserHelpSyn = `

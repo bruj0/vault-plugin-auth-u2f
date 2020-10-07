@@ -38,7 +38,7 @@ func registerRequest(w http.ResponseWriter, r *http.Request) {
 	// req := c.RegisterRequest()
 
 	//json.NewEncoder(w).Encode(req)
-	req, err := getPasstrough("auth/u2f/registerRequest")
+	req, err := getPasstrough("auth/u2f/registerRequest/mydevice")
 	if err != 200 {
 		log.Printf("registerRequest error: %s, code %d", req, err)
 		http.Error(w, "invalid response: "+req, err)
@@ -65,8 +65,21 @@ func registerResponse(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("registerResponse regResp: %v", regResp)
+	dataJSON, err := json.Marshal(struct {
+		ClientData       string `json:"clientData"`
+		RegistrationData string `json:"registrationData"`
+		Name             string `json:"name"`
+	}{
+		regResp.ClientData,
+		regResp.RegistrationData,
+		"mydevice",
+	})
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	//TODO add an identifier for the token to register and authentication token
-	req, statusCode := postPasstrough("auth/u2f/registerResponse", &regResp)
+	req, statusCode := postPasstrough("auth/u2f/registerResponse", dataJSON)
 	if statusCode != 200 {
 		log.Printf("registerResponse code %d , error: %v", statusCode, req)
 		http.Error(w, "error verifying response", statusCode)
@@ -217,14 +230,9 @@ func getPasstrough(url string) (string, int) {
 	return string(body), resp.StatusCode
 
 }
-func postPasstrough(url string, data *u2f.RegisterResponse) (string, int) {
-	dataJSON, err := json.Marshal(data)
-	if err != nil {
-		fmt.Println(err)
-		return err.Error(), http.StatusInternalServerError
-	}
-	fmt.Printf("postPasstrough data: %s\n", dataJSON)
-	req, err := http.NewRequest("POST", vaultAddr+"/v1/"+url, bytes.NewBuffer(dataJSON))
+func postPasstrough(url string, data []byte) (string, int) {
+	fmt.Printf("postPasstrough data: %s\n", data)
+	req, err := http.NewRequest("POST", vaultAddr+"/v1/"+url, bytes.NewBuffer(data))
 	if err != nil {
 		fmt.Printf(err.Error())
 		return err.Error(), http.StatusInternalServerError

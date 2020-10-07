@@ -56,19 +56,16 @@ endpoints by a user with root access. Authentication is then done
 by suppying the fields for "login".
 `
 
-func (b *backend) updateRegistrationData(req *logical.Request, d *framework.FieldData, dEntry *U2fEntry) (error, error) {
+func (b *backend) updateRegistrationData(req *logical.Request, d *framework.FieldData, dEntry *DeviceData) (error, error) {
 	return b.updateData(req, d, dEntry, "registration_data", "RegistrationData")
 }
-func (b *backend) updateClientData(req *logical.Request, d *framework.FieldData, dEntry *U2fEntry) (error, error) {
+func (b *backend) updateClientData(req *logical.Request, d *framework.FieldData, dEntry *DeviceData) (error, error) {
 	return b.updateData(req, d, dEntry, "client_data", "ClientData")
 }
-func (b *backend) updateChallenge(req *logical.Request, d *framework.FieldData, dEntry *U2fEntry) (error, error) {
-	return b.updateData(req, d, dEntry, "challenge", "Challenge")
-}
-func (b *backend) updateVersion(req *logical.Request, d *framework.FieldData, dEntry *U2fEntry) (error, error) {
+func (b *backend) updateVersion(req *logical.Request, d *framework.FieldData, dEntry *DeviceData) (error, error) {
 	return b.updateData(req, d, dEntry, "version", "Version")
 }
-func (b *backend) updateData(req *logical.Request, d *framework.FieldData, dEntry *U2fEntry, field string, structField string) (error, error) {
+func (b *backend) updateData(req *logical.Request, d *framework.FieldData, dEntry *DeviceData, field string, structField string) (error, error) {
 	fieldValue := d.Get(field).(string)
 	if structField == "" {
 		structField = field
@@ -78,7 +75,7 @@ func (b *backend) updateData(req *logical.Request, d *framework.FieldData, dEntr
 	return nil, nil
 }
 
-func (b *backend) device(ctx context.Context, s logical.Storage, name string) (*U2fEntry, error) {
+func (b *backend) device(ctx context.Context, s logical.Storage, name string) (*DeviceData, error) {
 	if name == "" {
 		return nil, fmt.Errorf("missing name")
 	}
@@ -92,7 +89,7 @@ func (b *backend) device(ctx context.Context, s logical.Storage, name string) (*
 		return nil, nil
 	}
 
-	var result U2fEntry
+	var result DeviceData
 	if err := entry.DecodeJSON(&result); err != nil {
 		return nil, err
 	}
@@ -101,7 +98,7 @@ func (b *backend) device(ctx context.Context, s logical.Storage, name string) (*
 	return &result, nil
 }
 
-func (b *backend) setDevice(ctx context.Context, s logical.Storage, name string, dEntry *U2fEntry) error {
+func (b *backend) setDevice(ctx context.Context, s logical.Storage, name string, dEntry *DeviceData) error {
 	entry, err := logical.StorageEntryJSON("devices/"+name, dEntry)
 	b.Logger().Debug("setDevice", "entry", entry)
 	if err != nil {
