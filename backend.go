@@ -28,7 +28,7 @@ func Backend() *backend {
 		PathsSpecial: &logical.Paths{
 			Unauthenticated: []string{
 				"login/*",
-				"registrationRequest",
+				//"registrationRequest",
 			},
 		},
 		Paths: append([]*framework.Path{

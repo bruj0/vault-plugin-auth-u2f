@@ -6,6 +6,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -37,9 +38,10 @@ func registerRequest(w http.ResponseWriter, r *http.Request) {
 	// req := c.RegisterRequest()
 
 	//json.NewEncoder(w).Encode(req)
-	req, err := getPasstrough("auth/u2f/registrationRequest")
-	if err != "" {
-		log.Printf("registerRequest error: %v", err)
+	req, err := getPasstrough("auth/u2f/registerRequest")
+	if err != 200 {
+		log.Printf("registerRequest error: %s, code %d", req, err)
+		http.Error(w, "invalid response: "+req, err)
 	}
 	log.Printf("1 registerRequest: %s", req)
 	w.Write([]byte(req))
@@ -48,30 +50,29 @@ func registerRequest(w http.ResponseWriter, r *http.Request) {
 
 func registerResponse(w http.ResponseWriter, r *http.Request) {
 	var regResp u2f.RegisterResponse
+
+	// body, err := ioutil.ReadAll(r.Body)
+	// if err != nil {
+	// 	fmt.Printf(err.Error())
+	// 	return
+	// }
+	// log.Printf("registerResponse body: %s", body)
+
 	if err := json.NewDecoder(r.Body).Decode(&regResp); err != nil {
+		log.Printf("registerResponse error: %s", err.Error())
 		http.Error(w, "invalid response: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// if challenge == nil {
-	// 	http.Error(w, "challenge not found", http.StatusBadRequest)
-	// 	return
-	// }
-
-	// reg, err := challenge.Register(regResp, &u2f.RegistrationConfig{SkipAttestationVerify: true})
-	// if err != nil {
-	// 	log.Printf("u2f.Register error: %v", err)
-	// 	http.Error(w, "error verifying response", http.StatusInternalServerError)
-	// 	return
-	// }
-
-	// registrations = append(registrations, *reg)
-	req, err := postPasstrough("auth/u2f/registrationResponse", &regResp)
-	if err != "" {
-		log.Printf("registerResponse error: %v", err)
+	log.Printf("registerResponse regResp: %v", regResp)
+	//TODO add an identifier for the token to register and authentication token
+	req, statusCode := postPasstrough("auth/u2f/registerResponse", &regResp)
+	if statusCode != 200 {
+		log.Printf("registerResponse code %d , error: %v", statusCode, req)
+		http.Error(w, "error verifying response", statusCode)
 	}
 	log.Printf("Registration success")
-	w.Write([]byte("success"))
+	w.Write([]byte(req))
 }
 
 func signRequest(w http.ResponseWriter, r *http.Request) {
@@ -194,46 +195,56 @@ const (
 
 var client *http.Client
 
-func getPasstrough(url string, data *u2f.RegisterResponse) (string, string) {
-	req, err := http.NewRequest("POST", vaultAddr+"/v1/"+url, nil)
-	if err != nil {
-		fmt.Printf(err.Error())
-		return "", err.Error()
-	}
-	req.Header.Add("X-Vault-Token", staticToken)
-	resp, err := client.Do(req)
-	if err != nil {
-		fmt.Printf(err.Error())
-		return "", err.Error()
-	}
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Printf(err.Error())
-		return "", err.Error()
-	}
-
-	return string(body), ""
-
-}
-func getPasstrough(url string) (string, string) {
+func getPasstrough(url string) (string, int) {
 	req, err := http.NewRequest("GET", vaultAddr+"/v1/"+url, nil)
 	if err != nil {
 		fmt.Printf(err.Error())
-		return "", err.Error()
+		return err.Error(), http.StatusInternalServerError
 	}
 	req.Header.Add("X-Vault-Token", staticToken)
 	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Printf(err.Error())
-		return "", err.Error()
+		return err.Error(), http.StatusInternalServerError
 	}
+	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Printf(err.Error())
-		return "", err.Error()
+		return err.Error(), http.StatusInternalServerError
 	}
 
-	return string(body), ""
+	return string(body), resp.StatusCode
+
+}
+func postPasstrough(url string, data *u2f.RegisterResponse) (string, int) {
+	dataJSON, err := json.Marshal(data)
+	if err != nil {
+		fmt.Println(err)
+		return err.Error(), http.StatusInternalServerError
+	}
+	fmt.Printf("postPasstrough data: %s\n", dataJSON)
+	req, err := http.NewRequest("POST", vaultAddr+"/v1/"+url, bytes.NewBuffer(dataJSON))
+	if err != nil {
+		fmt.Printf(err.Error())
+		return err.Error(), http.StatusInternalServerError
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Add("X-Vault-Token", staticToken)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Printf(err.Error())
+		return err.Error(), http.StatusInternalServerError
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf(err.Error())
+		return err.Error(), http.StatusInternalServerError
+	}
+	fmt.Printf("postPasstrough returned: %s\n", body)
+	return string(body), resp.StatusCode
 }
 func main() {
 	client = &http.Client{}

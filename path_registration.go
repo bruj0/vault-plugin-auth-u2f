@@ -12,7 +12,7 @@ import (
 
 func pathRegistrationRequest(b *backend) *framework.Path {
 	return &framework.Path{
-		Pattern: "registrationRequest",
+		Pattern: "registerRequest",
 		Operations: map[logical.Operation]framework.OperationHandler{
 			logical.ReadOperation: &framework.PathOperation{
 				Callback:    b.RegistrationRequest,
@@ -27,9 +27,9 @@ func pathRegistrationRequest(b *backend) *framework.Path {
 
 func pathRegistrationResponse(b *backend) *framework.Path {
 	return &framework.Path{
-		Pattern: "registrationResponse",
+		Pattern: "registerResponse",
 		Operations: map[logical.Operation]framework.OperationHandler{
-			logical.ReadOperation: &framework.PathOperation{
+			logical.UpdateOperation: &framework.PathOperation{
 				Callback:    b.RegistrationResponse,
 				Summary:     "Registers a u2f device",
 				Description: "Registers a u2f device",
@@ -103,6 +103,9 @@ func (b *backend) RegistrationRequest(
 	}, nil
 }
 
+//TODO add an identifier for the token to register
+//save it to devices
+//add authentication
 func (b *backend) RegistrationResponse(
 	ctx context.Context,
 	req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
@@ -113,7 +116,7 @@ func (b *backend) RegistrationResponse(
 	//version := d.Get("version").(string)
 	//challengeStr := d.Get("challenge").(string)
 
-	b.Logger().Debug("RegistrationResponse", "registrations", registrations)
+	b.Logger().Debug("RegistrationResponse", "1registrations", registrations)
 
 	if challenge == nil {
 		b.Logger().Error("RegistrationResponse", "challenge not found")
@@ -126,16 +129,19 @@ func (b *backend) RegistrationResponse(
 	}
 	reg, err := challenge.Register(regResp, &u2f.RegistrationConfig{SkipAttestationVerify: true})
 	if err != nil {
-		b.Logger().Error("u2f.Register error: %v", err)
+		b.Logger().Error("u2f.Register", "error:", err)
 		return nil, fmt.Errorf("error verifying response")
 	}
 
 	registrations = append(registrations, *reg)
 
+	b.Logger().Debug("RegistrationResponse", "2registrations", registrations)
+
 	return &logical.Response{
 		Data: map[string]interface{}{
-			logical.HTTPRawBody:    "ok",
-			logical.HTTPStatusCode: 200,
+			logical.HTTPContentType: "application/json",
+			logical.HTTPRawBody:     "{\"ok\"}",
+			logical.HTTPStatusCode:  200,
 		},
 	}, nil
 }
