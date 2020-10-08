@@ -34,7 +34,7 @@ func pathRegistrationRequest(b *backend) *framework.Path {
 
 func pathRegistrationResponse(b *backend) *framework.Path {
 	return &framework.Path{
-		Pattern: "registerResponse",
+		Pattern: "registerResponse/" + framework.GenericNameRegex("name"),
 		Operations: map[logical.Operation]framework.OperationHandler{
 			logical.UpdateOperation: &framework.PathOperation{
 				Callback:    b.RegistrationResponse,
