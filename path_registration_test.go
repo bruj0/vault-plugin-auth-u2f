@@ -9,6 +9,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/hashicorp/go-hclog"
+
 	"github.com/hashicorp/vault/sdk/helper/logging"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/ryankurte/go-u2f"
@@ -36,7 +37,7 @@ func getBackend(t *testing.T) (logical.Backend, logical.Storage) {
 var app_id string = "http://localhost"
 var registrations []u2f.Registration
 
-func TestRegistrationRequest(t *testing.T) {
+func TestE2ERequests(t *testing.T) {
 	b, storage := getBackend(t)
 
 	vk, err := u2f.NewVirtualKey()
@@ -58,8 +59,8 @@ func TestRegistrationRequest(t *testing.T) {
 		t.Fatalf("err:%s resp:%#v\n", err, resp)
 	}
 
-	t.Log("resp", spew.Sdump(resp))
-	t.Log("http_raw_body", resp.Data["http_raw_body"])
+	t.Log("registerRequest resp", spew.Sdump(resp))
+	t.Log("registerRequest http_raw_body", resp.Data["http_raw_body"])
 
 	//Convert it to RegisterRequestMessage
 	var registerReq u2f.RegisterRequestMessage
@@ -97,6 +98,57 @@ func TestRegistrationRequest(t *testing.T) {
 	}
 	t.Log("RegistrationResponse", spew.Sdump(resp))
 
+	//Generate challenge by calling signRequest
+	req = &logical.Request{
+		Operation: logical.ReadOperation,
+		Path:      "signRequest/my-device",
+		Storage:   storage,
+	}
 
-	
+	// Generate registration request
+	resp, err = b.HandleRequest(context.Background(), req)
+	if err != nil || (resp != nil && resp.IsError()) {
+		t.Fatalf("err:%s resp:%#v\n", err, resp)
+	}
+
+	t.Log("signRequest resp", spew.Sdump(resp))
+	t.Log("registerRequest http_raw_body", resp.Data["http_raw_body"])
+
+	//Convert it to SignRequestMessage
+	var signReq u2f.SignRequestMessage
+	rawBody = bytes.NewBufferString(resp.Data["http_raw_body"].(string))
+	dec = json.NewDecoder(rawBody)
+	err = dec.Decode(&signReq)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	t.Log("SignRequestMessage: signReq", spew.Sdump(signReq))
+
+	// Pass to virtual token
+	signResp, err := vk.HandleAuthenticationRequest(signReq)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	t.Log("SignRequestMessage: signResp", spew.Sdump(signResp))
+
+	//Authenticate by calling signResponse
+	req = &logical.Request{
+		Operation: logical.UpdateOperation,
+		Path:      "signResponse/my-device",
+		Storage:   storage,
+		Data: map[string]interface{}{
+			"keyHandle":     signResp.KeyHandle,
+			"signatureData": signResp.SignatureData,
+			"clientData":    signResp.ClientData,
+		},
+	}
+	resp, err = b.HandleRequest(context.Background(), req)
+	if err != nil || (resp != nil && resp.IsError()) {
+		t.Fatalf("err:%s resp:%#v\n", err, resp)
+	}
+
+	t.Log("signRequest resp", spew.Sdump(resp))
+
 }

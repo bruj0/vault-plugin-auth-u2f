@@ -175,7 +175,7 @@ func (b *backend) deviceCreateUpdate(
 			return logical.ErrorResponse(dErr.Error()), logical.ErrInvalidRequest
 		}
 	}
-	b.Logger().Debug("deviceCreateUpdate", "dentry", dEntry)
+	//b.Logger().Debug("deviceCreateUpdate", "dentry", dEntry)
 	return nil, b.setDevice(ctx, req.Storage, name, dEntry)
 }
 

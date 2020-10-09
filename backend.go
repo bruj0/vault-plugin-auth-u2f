@@ -87,7 +87,7 @@ func (b *backend) device(ctx context.Context, s logical.Storage, name string) (*
 	}
 
 	entry, err := s.Get(ctx, "devices/"+strings.ToLower(name))
-	b.Logger().Debug("device", "entry", entry)
+	//b.Logger().Debug("device", "entry", entry)
 	if err != nil {
 		return nil, err
 	}
@@ -99,14 +99,14 @@ func (b *backend) device(ctx context.Context, s logical.Storage, name string) (*
 	if err := entry.DecodeJSON(&result); err != nil {
 		return nil, err
 	}
-	b.Logger().Debug("device", "result", result)
+	//b.Logger().Debug("device", "result", result)
 
 	return &result, nil
 }
 
 func (b *backend) setDevice(ctx context.Context, s logical.Storage, name string, dEntry *DeviceData) error {
 	entry, err := logical.StorageEntryJSON("devices/"+name, dEntry)
-	b.Logger().Debug("setDevice", "entry", entry)
+	//b.Logger().Debug("setDevice", "entry", entry)
 	if err != nil {
 		return err
 	}
