@@ -75,9 +75,22 @@ func (b *backend) RegistrationRequest(
 	req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
 	var registration []u2f.Registration
 	name := strings.ToLower(d.Get("name").(string))
+	roleName := strings.ToLower(d.Get("role_name").(string))
 
 	if name == "" {
 		return nil, fmt.Errorf("missing device name")
+	}
+	if roleName == "" {
+		return nil, fmt.Errorf("missing device role name")
+	}
+
+	roleEntry, err := b.role(ctx, req.Storage, roleName)
+	if err != nil {
+		return nil, err
+	}
+
+	if roleEntry == nil {
+		return nil, fmt.Errorf("Specified role name not found")
 	}
 
 	dEntry, err := b.device(ctx, req.Storage, name)
@@ -90,9 +103,11 @@ func (b *backend) RegistrationRequest(
 		dEntry = &DeviceData{}
 		dEntry.Challenge = &u2f.Challenge{}
 		dEntry.Name = name
+		dEntry.RoleName = roleName
 	} else {
 		b.Logger().Error("RegistrationResponse", "Updating registration for device", name)
 		registration = dEntry.Registration
+		dEntry.RoleName = roleName
 	}
 
 	b.Logger().Debug("RegistrationRequest", "registration", registration)

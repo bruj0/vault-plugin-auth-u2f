@@ -123,7 +123,13 @@ func (b *backend) SignResponse(
 			Name: "u2f_" + name,
 		},
 	}
-	dEntry.PopulateTokenAuth(auth)
+
+	roleEntry, err := b.role(ctx, req.Storage, dEntry.RoleName)
+	if err != nil {
+		return nil, err
+	}
+
+	roleEntry.PopulateTokenAuth(auth)
 	return &logical.Response{
 		Auth: auth,
 	}, nil
