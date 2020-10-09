@@ -70,10 +70,6 @@ func pathRegistrationResponse(b *backend) *framework.Path {
 	}
 }
 
-const appID = "https://lxc1:3483"
-
-var trustedFacets = []string{appID}
-
 func (b *backend) RegistrationRequest(
 	ctx context.Context,
 	req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
@@ -93,6 +89,7 @@ func (b *backend) RegistrationRequest(
 		b.Logger().Error("RegistrationResponse", "Creating new registration for device", name)
 		dEntry = &DeviceData{}
 		dEntry.Challenge = &u2f.Challenge{}
+		dEntry.Name = name
 	} else {
 		b.Logger().Error("RegistrationResponse", "Updating registration for device", name)
 		registration = dEntry.Registration
@@ -105,7 +102,6 @@ func (b *backend) RegistrationRequest(
 		return nil, err
 	}
 
-	dEntry.Name = name
 	dEntry.Challenge = c
 
 	err = b.setDevice(ctx, req.Storage, name, dEntry)

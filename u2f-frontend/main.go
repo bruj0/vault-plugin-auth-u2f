@@ -79,7 +79,7 @@ func registerResponse(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//TODO add an identifier for the token to register and authentication token
-	req, statusCode := postPasstrough("auth/u2f/registerResponse", dataJSON)
+	req, statusCode := postPasstrough("auth/u2f/registerResponse/mydevice", dataJSON)
 	if statusCode != 200 {
 		log.Printf("registerResponse code %d , error: %v", statusCode, req)
 		http.Error(w, "error verifying response", statusCode)
@@ -89,26 +89,17 @@ func registerResponse(w http.ResponseWriter, r *http.Request) {
 }
 
 func signRequest(w http.ResponseWriter, r *http.Request) {
-	if registrations == nil {
-		http.Error(w, "registrations missing", http.StatusBadRequest)
-		return
+	req, err := getPasstrough("auth/u2f/signRequest/mydevice")
+	if err != 200 {
+		log.Printf("signRequest error: %s, code %d", req, err)
+		http.Error(w, "invalid response: "+req, err)
 	}
-
-	c, err := u2f.NewChallenge(appID, trustedFacets, registrations)
-	if err != nil {
-		log.Printf("u2f.NewChallenge error: %v", err)
-		http.Error(w, "error", http.StatusInternalServerError)
-		return
-	}
-	challenge = c
-
-	req := c.SignRequest()
-
-	log.Printf("authenticateRequest: %+v", req)
-	json.NewEncoder(w).Encode(req)
+	log.Printf("1 signRequest: %s", req)
+	w.Write([]byte(req))
 }
 
 func signResponse(w http.ResponseWriter, r *http.Request) {
+
 	var signResp u2f.SignResponse
 	if err := json.NewDecoder(r.Body).Decode(&signResp); err != nil {
 		http.Error(w, "invalid response: "+err.Error(), http.StatusBadRequest)
@@ -117,24 +108,29 @@ func signResponse(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("signResponse: %+v", signResp)
 
-	if challenge == nil {
-		http.Error(w, "challenge missing", http.StatusBadRequest)
+	dataJSON, err := json.Marshal(struct {
+		KeyHandle     string `json:"keyHandle"`
+		SignatureData string `json:"signatureData"`
+		ClientData    string `json:"clientData"`
+		Name          string `json:"name"`
+	}{
+		signResp.KeyHandle,
+		signResp.SignatureData,
+		signResp.ClientData,
+		"mydevice",
+	})
+	if err != nil {
+		fmt.Println(err)
+		http.Error(w, "invalid response: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	if registrations == nil {
-		http.Error(w, "registrations missing", http.StatusBadRequest)
-		return
+	req, statusCode := postPasstrough("auth/u2f/signResponse/mydevice", dataJSON)
+	if statusCode != 200 {
+		log.Printf("registerResponse code %d , error: %v", statusCode, req)
+		http.Error(w, "error verifying response", statusCode)
 	}
-
-	reg, err := challenge.Authenticate(signResp)
-	if err == nil {
-		log.Printf("newCounter: %d", reg.Counter)
-		w.Write([]byte("success"))
-		return
-	}
-
-	log.Printf("VerifySignResponse error: %v", err)
-	http.Error(w, "error verifying response", http.StatusInternalServerError)
+	log.Printf("Authentication success")
+	w.Write([]byte(req))
 }
 
 const indexHTML = `
@@ -149,7 +145,7 @@ const indexHTML = `
 
   </head>
   <body>
-    <h1>FIDO U2F Go Library Demo</h1>
+    <h1>Frontend Demo for the U2F authentication plugin for Vault</h1>
 
     <ul>
       <li><a href="javascript:register();">Register token</a></li>
@@ -174,11 +170,14 @@ const indexHTML = `
   }
 
   function u2fSigned(resp) {
-    console.log(resp);
     console.log("Sign response:")
-
-    $.post('/signResponse', JSON.stringify(resp)).done(function() {
-        alert('Success');
+    console.log(resp);
+    $.post('/signResponse', JSON.stringify(resp)).done(function(ret) {
+		console.log("u2fSigned:")
+		var data=JSON.parse(ret)
+		console.log(data)
+		console.log("Your token is: "+data.auth.client_token)
+        alert('Success, token: ' + data.auth.client_token);
     });
   }
 

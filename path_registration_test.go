@@ -97,4 +97,6 @@ func TestRegistrationRequest(t *testing.T) {
 	}
 	t.Log("RegistrationResponse", spew.Sdump(resp))
 
+
+	
 }

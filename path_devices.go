@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/vault/sdk/framework"
+	"github.com/hashicorp/vault/sdk/helper/tokenutil"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/ryankurte/go-u2f"
 )
@@ -189,6 +190,7 @@ func (b *backend) pathDeviceWrite(
 }
 
 type DeviceData struct {
+	tokenutil.TokenParams
 	Name string `json:"name" mapstructure:"name" structs:"name"`
 
 	RegistrationData string `json:"registration_data"`

@@ -10,6 +10,10 @@ import (
 	"github.com/hashicorp/vault/sdk/logical"
 )
 
+const appID = "https://lxc1:3483"
+
+var trustedFacets = []string{appID}
+
 // Factory returns a configured instance of the backend.
 func Factory(ctx context.Context, c *logical.BackendConfig) (logical.Backend, error) {
 	b := Backend()
@@ -27,8 +31,8 @@ func Backend() *backend {
 		Help:        backendHelp,
 		PathsSpecial: &logical.Paths{
 			Unauthenticated: []string{
-				"login/*",
-				//"registrationRequest",
+				"signRequest/*",
+				"signResponse/*",
 			},
 		},
 		Paths: append([]*framework.Path{
@@ -37,6 +41,8 @@ func Backend() *backend {
 			pathLogin(&b),
 			pathRegistrationRequest(&b),
 			pathRegistrationResponse(&b),
+			pathSignRequest(&b),
+			pathSignResponse(&b),
 		}),
 	}
 
