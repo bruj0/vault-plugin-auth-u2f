@@ -8,6 +8,7 @@ require (
 	github.com/hashicorp/go-sockaddr v1.0.2
 	github.com/hashicorp/vault/api v1.0.4
 	github.com/hashicorp/vault/sdk v0.1.13
+	github.com/mitchellh/mapstructure v1.1.2
 	github.com/ryankurte/go-u2f v0.1.4
 	golang.org/x/crypto v0.0.0-20200820211705-5c72a883971a // indirect
 )

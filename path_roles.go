@@ -4,26 +4,24 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
-	"github.com/hashicorp/go-sockaddr"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/helper/tokenutil"
 	"github.com/hashicorp/vault/sdk/logical"
 )
 
 type RoleEntry struct {
-	tokenutil.TokenParams
+	//Name string `json:"name" mapstructure:"name"`
+	tokenutil.TokenParams `mapstructure:",squash"`
+	// Policies []string
 
-	Policies []string
+	// // Duration after which the user will be revoked unless renewed
+	// TTL time.Duration
 
-	// Duration after which the user will be revoked unless renewed
-	TTL time.Duration
+	// // Maximum duration for which user can be valid
+	// MaxTTL time.Duration
 
-	// Maximum duration for which user can be valid
-	MaxTTL time.Duration
-
-	BoundCIDRs []*sockaddr.SockAddrMarshaler
+	// BoundCIDRs []*sockaddr.SockAddrMarshaler
 }
 
 func pathRolesList(b *backend) *framework.Path {
@@ -47,25 +45,25 @@ func pathRoles(b *backend) *framework.Path {
 				Type:        framework.TypeString,
 				Description: "Name of the role.",
 			},
-			"token_policies": &framework.FieldSchema{
-				Type:        framework.TypeCommaStringSlice,
-				Description: "Comma-separated list of policies",
-			},
-			"ttl": &framework.FieldSchema{
-				Type:        framework.TypeString,
-				Default:     "",
-				Description: "The lease duration which decides login expiration",
-			},
-			"max_ttl": &framework.FieldSchema{
-				Type:        framework.TypeString,
-				Default:     "",
-				Description: "Maximum duration after which login should expire",
-			},
-			"token_bound_cidrs": &framework.FieldSchema{
-				Type:        framework.TypeCommaStringSlice,
-				Description: "",
-				Deprecated:  true,
-			},
+			// "token_policies": &framework.FieldSchema{
+			// 	Type:        framework.TypeCommaStringSlice,
+			// 	Description: "Comma-separated list of policies",
+			// },
+			// "ttl": &framework.FieldSchema{
+			// 	Type:        framework.TypeString,
+			// 	Default:     "",
+			// 	Description: "The lease duration which decides login expiration",
+			// },
+			// "max_ttl": &framework.FieldSchema{
+			// 	Type:        framework.TypeString,
+			// 	Default:     "",
+			// 	Description: "Maximum duration after which login should expire",
+			// },
+			// "token_bound_cidrs": &framework.FieldSchema{
+			// 	Type:        framework.TypeCommaStringSlice,
+			// 	Description: "",
+			// 	Deprecated:  true,
+			// },
 		},
 
 		Callbacks: map[logical.Operation]framework.OperationFunc{
@@ -157,10 +155,10 @@ func (b *backend) pathRoleRead(
 		return nil, nil
 	}
 
-	data := map[string]interface{}{}
-	data["role"] = device
+	respData := map[string]interface{}{}
+	device.PopulateTokenData(respData)
 	return &logical.Response{
-		Data: data,
+		Data: respData,
 	}, nil
 }
 
@@ -189,8 +187,8 @@ func (b *backend) roleCreateUpdate(
 func (b *backend) pathRoleWrite(
 	ctx context.Context,
 	req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
-	tokenPolicies := d.Get("token_policies").(string)
-	if req.Operation == logical.CreateOperation && tokenPolicies == "" {
+	tokenPolicies := d.Get("token_policies").([]string)
+	if req.Operation == logical.CreateOperation && len(tokenPolicies) == 0 {
 		return logical.ErrorResponse("missing token_policies"), logical.ErrInvalidRequest
 	}
 	return b.roleCreateUpdate(ctx, req, d)
