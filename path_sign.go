@@ -117,6 +117,7 @@ func (b *backend) SignResponse(
 	auth := &logical.Auth{
 		Metadata: map[string]string{
 			"device_name": name,
+			"role":   dEntry.RoleName,
 		},
 		DisplayName: "u2f_" + name,
 		Alias: &logical.Alias{

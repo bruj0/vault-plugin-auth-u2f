@@ -15,7 +15,7 @@ func pathRegistrationRequest(b *backend) *framework.Path {
 	return &framework.Path{
 		Pattern: "registerRequest/" + framework.GenericNameRegex("name"),
 		Operations: map[logical.Operation]framework.OperationHandler{
-			logical.ReadOperation: &framework.PathOperation{
+			logical.UpdateOperation: &framework.PathOperation{
 				Callback:    b.RegistrationRequest,
 				Summary:     "Returns data to register a u2f device",
 				Description: "Returns data to register a u2f device",
@@ -25,6 +25,10 @@ func pathRegistrationRequest(b *backend) *framework.Path {
 			"name": &framework.FieldSchema{
 				Type:        framework.TypeString,
 				Description: "Device name.",
+			},
+			"role_name": &framework.FieldSchema{
+				Type:        framework.TypeString,
+				Description: "Role assigned to the device.",
 			},
 		},
 		//HelpSynopsis:    pathLoginSyn,

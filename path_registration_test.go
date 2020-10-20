@@ -37,6 +37,27 @@ func getBackend(t *testing.T) (logical.Backend, logical.Storage) {
 var app_id string = "http://localhost"
 var registrations []u2f.Registration
 
+func TestRegistrationRequest(t *testing.T) {
+	b, storage := getBackend(t)
+
+	createRole(t, b, storage, "role1", "c,d")
+	//Generate challenge by calling registerRequest
+	req := &logical.Request{
+		Operation: logical.ReadOperation,
+		Path:      "registerRequest/my-device",
+		Storage:   storage,
+		Data: map[string]interface{}{
+			"role_name": "my-role",
+		},
+	}
+
+	// Generate registration request
+	resp, err := b.HandleRequest(context.Background(), req)
+	if err == nil || resp != nil {
+		t.Fatalf("err:%s resp:%#v isError=%t\n", err, resp, resp.IsError())
+	}
+
+}
 func TestE2ERequests(t *testing.T) {
 	b, storage := getBackend(t)
 
@@ -45,12 +66,15 @@ func TestE2ERequests(t *testing.T) {
 		t.Error(err)
 		t.FailNow()
 	}
-
+	createRole(t, b, storage, "my-role", "c,d")
 	//Generate challenge by calling registerRequest
 	req := &logical.Request{
-		Operation: logical.ReadOperation,
+		Operation: logical.UpdateOperation,
 		Path:      "registerRequest/my-device",
 		Storage:   storage,
+		Data: map[string]interface{}{
+			"role_name": "my-role",
+		},
 	}
 
 	// Generate registration request

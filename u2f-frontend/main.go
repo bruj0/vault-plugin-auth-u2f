@@ -17,7 +17,7 @@ import (
 	"github.com/ryankurte/go-u2f"
 )
 
-const appID = "https://lxc1:3483"
+const appID = "https://localhost:3483"
 
 var trustedFacets = []string{appID}
 
@@ -38,10 +38,11 @@ func registerRequest(w http.ResponseWriter, r *http.Request) {
 	// req := c.RegisterRequest()
 
 	//json.NewEncoder(w).Encode(req)
-	req, err := getPasstrough("auth/u2f/registerRequest/mydevice")
-	if err != 200 {
-		log.Printf("registerRequest error: %s, code %d", req, err)
-		http.Error(w, "invalid response: "+req, err)
+	dataJSON := "{ \"role_name\": \"my-role\"}"
+	req, statusCode := postPasstrough("auth/u2f/registerRequest/mydevice", []byte(dataJSON))
+	if statusCode != 200 {
+		log.Printf("registerRequest code %d , error: %v", statusCode, req)
+		http.Error(w, "registerRequest response", statusCode)
 	}
 	log.Printf("1 registerRequest: %s", req)
 	w.Write([]byte(req))
@@ -78,7 +79,7 @@ func registerResponse(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(err)
 		return
 	}
-	//TODO add an identifier for the token to register and authentication token
+
 	req, statusCode := postPasstrough("auth/u2f/registerResponse/mydevice", dataJSON)
 	if statusCode != 200 {
 		log.Printf("registerResponse code %d , error: %v", statusCode, req)
