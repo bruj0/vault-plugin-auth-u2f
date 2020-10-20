@@ -3,7 +3,7 @@ This is non official plugin for HashiCorp Vault that uses a FIDO U2F enabled dev
 
 It works by assigning a role to a device when an administrator registers it.
 
-It currently support the web browser implementation of thr U2F protocol from Google https://github.com/google/u2f-ref-code/blob/master/u2f-gae-demo/war/js/u2f-api.js
+It currently support the web browser implementation of the U2F protocol from Google https://github.com/google/u2f-ref-code/blob/master/u2f-gae-demo/war/js/u2f-api.js
 
 It uses the u2f for Go library by Ryan Kurte: https://github.com/ryankurte/go-u2f
 
@@ -17,9 +17,9 @@ $ vault write auth/u2f/roles/my-role token_policies="polA,polB"
 ```
 # Registrations
 
-Registration of new devices is done by a POST to the endpoint `auth/<u2f>/registerRequest/<mydevice>' with the payload of 'role_name: <my-role>' as json.
+Registration of new devices is done by a POST to the endpoint `auth/<u2f>/registerRequest/<mydevice>` with the payload of `role_name: <my-role>` as json.
 
-Finishing with another POST to `auth/<u2f>/registerResponse` with a payload of the protocol data.
+Finishing with another POST to `auth/<u2f>/registerResponse` with a payload of the protocol data signed by the device when the user presses the physical button.
 
 See the demo in the directory u2f-frontend.
 
