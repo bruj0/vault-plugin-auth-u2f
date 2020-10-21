@@ -30,7 +30,7 @@ This is done via the endpoints `auth/<u2f>/signRequest` and `auth/<u2f>/signResp
 
 # Demo
 
-* In the director u2f-frontend you will find a shell script that will start Vault in dev mode and load the plugin:
+* In the directory u2f-frontend you will find a shell script that will start Vault in dev mode and load the plugin:
 ``` 
 $ make 
 $ cd u2f-frontend
@@ -88,8 +88,8 @@ postPasstrough returned: {"request_id":"90b6b928-4d50-cc78-474a-609e84f59b48","l
 * Go to a browser to https://localhost:3483
 ![](u2f-frontend/u2f-demo.png)
 
-* Click in Register token and press the button in your token
-* Click in Authenticate and press the button in your token
+* Click in Register token and press the button in your device
+* Click in Authenticate and press the button in your device
 
 The token that you receive will have the policies attached that your role was assigned at the begining:
 

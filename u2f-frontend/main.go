@@ -201,7 +201,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 const (
-	vaultAddr = "http://lxc1:8200"
+	vaultAddr = "http://localhost:8200"
 
 	staticToken = "root"
 )
