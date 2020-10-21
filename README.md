@@ -1,5 +1,5 @@
 # vault-plugin-auth-u2f
-This is non official plugin for HashiCorp Vault that uses a FIDO U2F enabled device as way to authenticate a human.
+This is a non official plugin for HashiCorp Vault that uses a FIDO U2F enabled device as way to authenticate a human.
 
 It works by assigning a role to a device when an administrator registers it.
 
