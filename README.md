@@ -19,6 +19,12 @@ $ vault write auth/u2f/roles/my-role token_policies="polA,polB"
 
 Registration of new devices is done by a POST to the endpoint `auth/<u2f>/registerRequest/<mydevice>` with the payload of `role_name: <my-role>` as json.
 
+Its meant to be the friendly name given to the physical token when an administrator "registers" it in Vault.
+
+Internally its the unique ID that will be used as a key to save all the data for future authentication.
+
+There is no expected format, only that its in simple ascii.
+
 Finishing with another POST to `auth/<u2f>/registerResponse` with a payload of the protocol data signed by the device when the user presses the physical button.
 
 See the demo in the directory u2f-frontend.
