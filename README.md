@@ -23,7 +23,9 @@ Registration of new devices is done by a POST to the endpoint `auth/<u2f>/regist
 
 Internally its the unique ID that will be used as a key to save all the data for future authentication.
 
-There is no expected format, only that its in simple ascii.
+There is no expected format, only that its in simple ascii and url safe.
+
+This ID will have to be known by the person to be authenticated, could be an email or a PIN.
 
 Finishing with another POST to `auth/<u2f>/registerResponse` with a payload of the protocol data signed by the device when the user presses the physical button.
 
