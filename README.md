@@ -1,6 +1,8 @@
 # vault-plugin-auth-u2f
 This is a non official plugin for HashiCorp Vault that uses a FIDO U2F enabled device as way to authenticate a human.
 
+By requiring something you know, a PIN with something you have, the physical token.
+
 It works by assigning a role to a device when an administrator registers it.
 
 It currently support the web browser implementation of the U2F protocol from Google https://github.com/google/u2f-ref-code/blob/master/u2f-gae-demo/war/js/u2f-api.js
