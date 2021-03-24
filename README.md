@@ -9,6 +9,7 @@ It currently support the web browser implementation of the U2F protocol from Goo
 
 It uses the u2f for Go library by Ryan Kurte: https://github.com/ryankurte/go-u2f
 
+Have any questions or comments? Please use the [Discussions](https://github.com/bruj0/vault-plugin-auth-u2f/discussions) forums.
 
 # Roles
 
